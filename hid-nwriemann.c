@@ -1,5 +1,5 @@
 /*
- *  Multitouch HID driver for NextWindow Holly (standalone) Touchscreen
+ *  Multitouch HID driver for NextWindow Riemann (standalone) Touchscreen
  *
  *  Copyright (c) 2008-2010 Rafi Rubin
  *  Copyright (c) 2009-2010 Stephane Chatty
@@ -31,18 +31,18 @@
 #define debug(...) printk(__VA_ARGS__)
 #define trace(...) printk(__VA_ARGS__)
 
-struct holly_data {
+struct riemann_data {
 	__u8	status;
 	__u8	contact_id;
 	__u16	x,y;
 	__u16	w,h;
 };
 
-static int holly_input_mapping(struct hid_device *hdev, struct hid_input *hi,
+static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
 		unsigned long **bit, int *max)
 {
-	struct holly_data *hd = hid_get_drvdata(hdev);
+	struct riemann_data *hd = hid_get_drvdata(hdev);
 	struct input_dev *input = hi->input;
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 #if 1
@@ -104,7 +104,7 @@ static int holly_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	return 0;
 }
 
-static int holly_input_mapped(struct hid_device *hdev, struct hid_input *hi,
+static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
 		unsigned long **bit, int *max)
 {
@@ -118,11 +118,11 @@ static int holly_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 }
 
 /*
- * this function is called by holly_event when
+ * this function is called by riemann_event when
  * a touch is ready to be sent to the input sub
  * system
  */
-static void report_touch(struct holly_data *hd, struct input_dev *input)
+static void report_touch(struct riemann_data *hd, struct input_dev *input)
 {
 	trace("%s()\n", __func__);
 
@@ -165,11 +165,11 @@ static void report_touch(struct holly_data *hd, struct input_dev *input)
  * decide whether we are in multi or single touch mode
  * and call input_mt_sync after each point if necessary
  */
-static int holly_event (struct hid_device *hid, struct hid_field *field,
+static int riemann_event (struct hid_device *hid, struct hid_field *field,
 		                        struct hid_usage *usage, __s32 value)
 {
 	struct input_dev *input = field->hidinput->input;
-	struct holly_data *hd = hid_get_drvdata(hid);
+	struct riemann_data *hd = hid_get_drvdata(hid);
 	
 	debug("%s() - usage:0x%.8X\n", __func__, usage->hid);
 	debug("%s() - reportid:%d\n", __func__, field->report->id);
@@ -224,7 +224,7 @@ static int holly_event (struct hid_device *hid, struct hid_field *field,
 			case HID_DG_HEIGHT:
 				info("%s() - H:0x%.4X\n", __func__, value);
 				hd->h = value;
-				/* last item in holly's touch report so trigger an update */
+				/* last item in riemann's touch report so trigger an update */
 				//report_touch(hd, input);
 				break;
 		}
@@ -239,16 +239,16 @@ static int holly_event (struct hid_device *hid, struct hid_field *field,
 	return 1;	/* we handled it */
 }
 
-static int holly_probe(struct hid_device *hdev, const struct hid_device_id *id)
+static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
 	int ret;
-	struct holly_data *hd;
+	struct riemann_data *hd;
 
 	trace("%s()\n", __func__); 
 
-	hd = kzalloc(sizeof(struct holly_data), GFP_KERNEL);
+	hd = kzalloc(sizeof(struct riemann_data), GFP_KERNEL);
 	if (!hd) {
-		dev_err(&hdev->dev, "cannot allocate NW holly data\n");
+		dev_err(&hdev->dev, "cannot allocate NW riemann data\n");
 		return -ENOMEM;
 	}
 
@@ -274,7 +274,7 @@ error_free:
 	return ret;
 }
 
-static void holly_remove(struct hid_device *hdev)
+static void riemann_remove(struct hid_device *hdev)
 {
 	trace("%s()\n", __func__); 
 	hid_hw_stop(hdev);
@@ -282,28 +282,28 @@ static void holly_remove(struct hid_device *hdev)
 	hid_set_drvdata(hdev, NULL);
 }
 
-static const struct hid_device_id holly_devices[] = {
+static const struct hid_device_id riemann_devices[] = {
 	{HID_USB_DEVICE(0x1926, 0x0008)},
 	{ }
 };
-MODULE_DEVICE_TABLE(hid, holly_devices);
+MODULE_DEVICE_TABLE(hid, riemann_devices);
 
 /* if reports with these usages show up send them to event handler */
-static const struct hid_usage_id holly_grabbed_usages[] = {
+static const struct hid_usage_id riemann_grabbed_usages[] = {
 	/**@todo add our multitouch usage to this list only */
 	{ HID_ANY_ID, HID_ANY_ID, HID_ANY_ID },
 	{ HID_ANY_ID - 1, HID_ANY_ID - 1, HID_ANY_ID - 1 }
 };
 
-static struct hid_driver holly_driver = {
-	.name = "holly",
-	.id_table = holly_devices,
-	.probe = holly_probe,
-	.remove = holly_remove,
-	.input_mapping = holly_input_mapping,
-	.input_mapped = holly_input_mapped,
-	.usage_table = holly_grabbed_usages,
-	.event = holly_event,
+static struct hid_driver riemann_driver = {
+	.name = "riemann",
+	.id_table = riemann_devices,
+	.probe = riemann_probe,
+	.remove = riemann_remove,
+	.input_mapping = riemann_input_mapping,
+	.input_mapped = riemann_input_mapped,
+	.usage_table = riemann_grabbed_usages,
+	.event = riemann_event,
 };
 
 struct hid_dynid {
@@ -311,18 +311,18 @@ struct hid_dynid {
 	struct hid_device_id id;
 };
 
-static int __init holly_init(void)
+static int __init riemann_init(void)
 {
 	trace("%s()\n", __func__);
-	return hid_register_driver(&holly_driver);
+	return hid_register_driver(&riemann_driver);
 }
 
-static void __exit holly_exit(void)
+static void __exit riemann_exit(void)
 {
-	hid_unregister_driver(&holly_driver);
+	hid_unregister_driver(&riemann_driver);
 	trace("%s()\n", __func__);
 }
 
-module_init(holly_init);
-module_exit(holly_exit);
+module_init(riemann_init);
+module_exit(riemann_exit);
 MODULE_LICENSE("GPL");
