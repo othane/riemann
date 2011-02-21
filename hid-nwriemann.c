@@ -225,7 +225,7 @@ static int holly_event (struct hid_device *hid, struct hid_field *field,
 				info("%s() - H:0x%.4X\n", __func__, value);
 				hd->h = value;
 				/* last item in holly's touch report so trigger an update */
-				report_touch(hd, input);
+				//report_touch(hd, input);
 				break;
 		}
 	}
