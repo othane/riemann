@@ -32,10 +32,14 @@
 #define trace(...) printk(__VA_ARGS__)
 
 struct riemann_data {
-	__u8	status;
-	__u8	contact_id;
-	__u16	x,y;
-	__u16	w,h;
+	__u8	touch_index;
+	struct {
+		__u8	status;
+		__u8	contact_id;
+		__u16	x,y;
+		__u16	w,h;
+	} touch[2];
+	__u8	contact_count;
 };
 
 static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
@@ -45,7 +49,6 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	struct riemann_data *hd = hid_get_drvdata(hdev);
 	struct input_dev *input = hi->input;
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
-#if 1
 
 	/* ignore the digitizer for now */
 	if (field->logical != HID_DG_FINGER)
@@ -99,7 +102,7 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 			/* ignore vendor-specific features */
 			return -1;
 	}
-#endif
+	
 	/* pass the rest through */
 	return 0;
 }
@@ -112,8 +115,10 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 
 	/* this usage has been mapped just keep processing all as though this cb was not hooked up */
 	/**@todo I dont really know what I am supposed to do here */
+#if 0
 	if (usage->type == EV_KEY || usage->type == EV_ABS)
 		clear_bit(usage->code, *bit);
+#endif
 	return 0;
 }
 
@@ -124,38 +129,50 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
  */
 static void report_touch(struct riemann_data *hd, struct input_dev *input)
 {
+	unsigned int k;
 	trace("%s()\n", __func__);
-
-	/* filter junk */
-	if ((hd->x < 0) || (hd->x > 32767) ||
-		(hd->y < 0) || (hd->y > 32767) ||
-		(hd->contact_id < 0) || (hd->contact_id > 1))
-	{
-		debug("%s() - junk report detected\n", __func__);
+	
+	info("%s() - touch_index=%d, contact_count=%d\n", __func__, hd->touch_index, hd->contact_count);
+	if (hd->touch_index != 2) {
+		info("%s() - invalid report\n", __func__);
 		return;
 	}
 
-	/* multitouch */
-	if (hd->status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
-		debug("%s() - sending multitouch event to input\n", __func__);
-		input_event(input, EV_ABS, ABS_MT_TRACKING_ID, hd->contact_id);
-		input_event(input, EV_ABS, ABS_MT_POSITION_X, hd->x);
-		input_event(input, EV_ABS, ABS_MT_POSITION_Y, hd->y);
-	}
-	input_mt_sync(input);
-#if 0
-	
-	/* mouse (only for the first touch point) */
-	/**@todo can we use contact_id for this ? */
-	if (hd->contact_id == 0) {
-		if (hd->status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
-			debug("%s() - sending mouse event to input\n", __func__);
-			input_event(input, EV_KEY, BTN_TOUCH, 1);
-			input_event(input, EV_ABS, ABS_X, hd->x);
-			input_event(input, EV_ABS, ABS_Y, hd->y);
+	for (k=0; k < hd->contact_count; k++) {
+		/* filter junk */
+		if ((hd->touch[k].x < 0) || (hd->touch[k].x > 32767) ||
+			(hd->touch[k].y < 0) || (hd->touch[k].y > 32767) ||
+			(hd->touch[k].contact_id < 0) || (hd->touch[k].contact_id > 1)) {
+			debug("%s() - junk report detected\n", __func__);
+			return;
 		}
-		input_sync(input);
+#if 0
+		/* multitouch */
+		if (hd->status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
+			debug("%s() - sending multitouch event to input\n", __func__);
+			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, hd->contact_id);
+			input_event(input, EV_ABS, ABS_MT_POSITION_X, hd->x);
+			input_event(input, EV_ABS, ABS_MT_POSITION_Y, hd->y);
+		}
+		input_mt_sync(input);
+#endif	
 	}
+
+#if 0
+	/* mouse (only for the first touch point) */
+	if (hd->touch[0].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
+		debug("%s() - sending mouse event to input\n", __func__);
+		input_event(input, EV_KEY, BTN_TOUCH, 1);
+		input_event(input, EV_ABS, ABS_X, hd->touch[0].x);
+		input_event(input, EV_ABS, ABS_Y, hd->touch[0].y);
+	}
+	else {
+		debug("%s() - sending mouse event to input\n", __func__);
+		input_event(input, EV_KEY, BTN_TOUCH, 0);
+		input_event(input, EV_ABS, ABS_X, hd->touch[0].x);
+		input_event(input, EV_ABS, ABS_Y, hd->touch[0].y);
+	}
+	input_sync(input);
 #endif
 }
 
@@ -180,52 +197,58 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 	if (field->application != HID_DG_TOUCHSCREEN)
 		return 0;	/* hid sub system please handle these non finger related stuff */
 
-	/* process finger reports & only if input subsystem connected */
-	if ((field->logical == HID_DG_FINGER) &&
-		(hid->claimed & HID_CLAIMED_INPUT)) {
+	/* process the touch report */
+	if (hid->claimed & HID_CLAIMED_INPUT) {
 		/* interpret report */
 		/**@todo do I need to endian correct the values or has hid-core already done it for me ? */
 		switch (usage->hid) {
 			/* multitouch (finger) report */
 			case HID_DG_TIPSWITCH:
 				info("%s() - TIPSWITCH:0x%.4X\n", __func__, value);
-				hd->status &= ~TIPSWITCH_BIT;
+				hd->touch[hd->touch_index].status &= ~TIPSWITCH_BIT;
 				if (value)
-					hd->status |= TIPSWITCH_BIT;
+					hd->touch[hd->touch_index].status |= TIPSWITCH_BIT;
 				break;
 			case HID_DG_INRANGE:
 				info("%s() - INRANGE:0x%.4X\n", __func__, value);
-				hd->status &= ~IN_RANGE_BIT;
+				hd->touch[hd->touch_index].status &= ~IN_RANGE_BIT;
 				if (value)
-					hd->status |= IN_RANGE_BIT;
+					hd->touch[hd->touch_index].status |= IN_RANGE_BIT;
 				break;
 			case HID_DG_CONFIDENCE:
 				info("%s() - CONFIDENCE:0x%.4X\n", __func__, value);
-				hd->status &= ~CONFIDENCE_BIT;
+				hd->touch[hd->touch_index].status &= ~CONFIDENCE_BIT;
 				if (value)
-					hd->status |= CONFIDENCE_BIT;
+					hd->touch[hd->touch_index].status |= CONFIDENCE_BIT;
 				break;
 			case HID_DG_CONTACTID:
-				info("%s() - CONTACT ID:0x%.4X\n", __func__, value);
-				hd->contact_id = value;
+				info("%s() - CONTACT ID:%d\n", __func__, value);
+				hd->touch[hd->touch_index].contact_id = value;
 				break;
 			case HID_GD_X:
-				info("%s() - X:0x%.4X\n", __func__, value);
-				hd->x = value;
+				info("%s() - X:%d\n", __func__, value);
+				hd->touch[hd->touch_index].x = value;
 				break;
 			case HID_GD_Y:
-				info("%s() - Y:0x%.4X\n", __func__, value);
-				hd->y = value;
+				info("%s() - Y:%d\n", __func__, value);
+				hd->touch[hd->touch_index].y = value;
 				break;
 			case HID_DG_WIDTH:
-				info("%s() - W:0x%.4X\n", __func__, value);
-				hd->w = value;
+				info("%s() - W:%d\n", __func__, value);
+				hd->touch[hd->touch_index].w = value;
 				break;
 			case HID_DG_HEIGHT:
-				info("%s() - H:0x%.4X\n", __func__, value);
-				hd->h = value;
-				/* last item in riemann's touch report so trigger an update */
-				//report_touch(hd, input);
+				info("%s() - H:%d\n", __func__, value);
+				hd->touch[hd->touch_index].h = value;
+				/* last item in the touch report so move to next touch */
+				hd->touch_index++;
+				break;
+			case HID_DG_CONTACTCOUNT:
+				info("%s() - CONTACTCOUNT:0x%.4X\n", __func__, value);
+				hd->contact_count = value;
+				/**@todo process report now we have both touches */
+				report_touch(hd, input);
+				hd->touch_index = 0;
 				break;
 		}
 	}
@@ -243,6 +266,7 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 {
 	int ret;
 	struct riemann_data *hd;
+	struct hid_input *hidinput;
 
 	trace("%s()\n", __func__); 
 
@@ -251,6 +275,7 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 		dev_err(&hdev->dev, "cannot allocate NW riemann data\n");
 		return -ENOMEM;
 	}
+	hd->touch_index = 0;
 
 	hid_set_drvdata(hdev, hd);
 
