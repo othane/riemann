@@ -50,8 +50,8 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 	struct input_dev *input = hi->input;
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
-	/* ignore the digitizer for now */
-	if (field->logical != HID_DG_FINGER)
+	/* just touchscreen for now */
+	if (field->application != HID_DG_TOUCHSCREEN)
 		return -1;
 
 	switch (usage->hid & HID_USAGE_PAGE) {
@@ -115,11 +115,11 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 
 	/* this usage has been mapped just keep processing all as though this cb was not hooked up */
 	/**@todo I dont really know what I am supposed to do here */
-#if 0
+#if 1
 	if (usage->type == EV_KEY || usage->type == EV_ABS)
-		clear_bit(usage->code, *bit);
+		set_bit(usage->type, hi->input->evbit);
+	return -1;
 #endif
-	return 0;
 }
 
 /*
@@ -133,6 +133,7 @@ static void report_touch(struct riemann_data *hd, struct input_dev *input)
 	trace("%s()\n", __func__);
 	
 	info("%s() - touch_index=%d, contact_count=%d\n", __func__, hd->touch_index, hd->contact_count);
+	info("%s() - info=%d\n", __func__, (int)input);
 	if (hd->touch_index != 2) {
 		info("%s() - invalid report\n", __func__);
 		return;
