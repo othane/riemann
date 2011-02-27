@@ -46,7 +46,6 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
 		unsigned long **bit, int *max)
 {
-	struct riemann_data *hd = hid_get_drvdata(hdev);
 	struct input_dev *input = hi->input;
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
@@ -133,7 +132,7 @@ static void report_touch(struct riemann_data *hd, struct input_dev *input)
 	trace("%s()\n", __func__);
 	
 	info("%s() - touch_index=%d, contact_count=%d\n", __func__, hd->touch_index, hd->contact_count);
-	info("%s() - info=%d\n", __func__, (int)input);
+	info("%s() - info=%p\n", __func__, input);
 	if (hd->touch_index != 2) {
 		info("%s() - invalid report\n", __func__);
 		return;
@@ -267,7 +266,6 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 {
 	int ret;
 	struct riemann_data *hd;
-	struct hid_input *hidinput;
 
 	trace("%s()\n", __func__); 
 
