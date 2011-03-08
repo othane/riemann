@@ -146,19 +146,16 @@ static void report_touch(struct riemann_data *hd, struct input_dev *input)
 			debug("%s() - junk report detected\n", __func__);
 			return;
 		}
-#if 0
 		/* multitouch */
-		if (hd->status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
+		if (hd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
 			debug("%s() - sending multitouch event to input\n", __func__);
-			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, hd->contact_id);
-			input_event(input, EV_ABS, ABS_MT_POSITION_X, hd->x);
-			input_event(input, EV_ABS, ABS_MT_POSITION_Y, hd->y);
+			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, hd->touch[k].contact_id);
+			input_event(input, EV_ABS, ABS_MT_POSITION_X, hd->touch[k].x);
+			input_event(input, EV_ABS, ABS_MT_POSITION_Y, hd->touch[k].y);
 		}
 		input_mt_sync(input);
-#endif	
 	}
 
-#if 0
 	/* mouse (only for the first touch point) */
 	if (hd->touch[0].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
 		debug("%s() - sending mouse event to input\n", __func__);
@@ -173,7 +170,6 @@ static void report_touch(struct riemann_data *hd, struct input_dev *input)
 		input_event(input, EV_ABS, ABS_Y, hd->touch[0].y);
 	}
 	input_sync(input);
-#endif
 }
 
 /*
@@ -247,7 +243,7 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 				info("%s() - CONTACTCOUNT:0x%.4X\n", __func__, value);
 				hd->contact_count = value;
 				/**@todo process report now we have both touches */
-				report_touch(hd, input);
+				//report_touch(hd, input);
 				hd->touch_index = 0;
 				break;
 		}
