@@ -1,13 +1,10 @@
-Currently the best way to install the driver is to use::
+To build the driver make sure the kernel headers and gcc are installed then::
 
-    # echo 0003:VENDORID:DEVICEID.n > /sys/module/usbhid/drivers/hid\:generic-usb/unbind
+    # make
 
-Then load your driver with a "modprobe" and do a::
+To install the driver::
 
-    # echo 0003:VENDORID:DEVICEID.n > /sys/module/YOURDRIVER/drivers/INERNAL_NAME/bind
+    # insmod hid-nwriemann.ko
+    # ./load_riemann.sh
 
-For example::
-
-    # echo 0003:1926:0008.0001 > /sys/module/usbhid/drivers/hid\:generic-usb/unbind
-    # echo 0003:1926:0008.0001 > /sys/module/hid_riemann/drivers/hid\:riemann/bind
-
+There is a freeze bug somewhere.. still working on it
