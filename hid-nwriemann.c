@@ -46,7 +46,6 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
 		unsigned long **bit, int *max)
 {
-	struct input_dev *input = hi->input;
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
 	/* just touchscreen for now */
@@ -58,16 +57,24 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		case HID_UP_GENDESK:
 			switch (usage->hid) {
 				case HID_GD_X:
-					debug("%s() - x min:%d; x max:%d\n", __func__, field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_X);
-					input_set_abs_params(input, ABS_X, field->logical_minimum, field->logical_maximum, 0, 0);
-					input_set_abs_params(input, ABS_MT_POSITION_X, field->logical_minimum, field->logical_maximum, 0, 0);
+					debug("%s() - x min:%d; x max:%d\n", __func__,
+						field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max,
+							EV_ABS, ABS_MT_POSITION_X);
+					/* touchscreen emulation */
+					input_set_abs_params(hi->input, ABS_X,
+								field->logical_minimum,
+								field->logical_maximum, 0, 0);
 					return 1;
 				case HID_GD_Y:
-					debug("%s() - y min:%d; y max:%d\n", __func__, field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_Y);
-					input_set_abs_params(input, ABS_Y, field->logical_minimum, field->logical_maximum, 0, 0);
-					input_set_abs_params(input, ABS_MT_POSITION_Y, field->logical_minimum, field->logical_maximum, 0, 0);
+					debug("%s() - y min:%d; y max:%d\n", __func__,
+						field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max,
+							EV_ABS, ABS_MT_POSITION_Y);
+					/* touchscreen emulation */
+					input_set_abs_params(hi->input, ABS_Y,
+								field->logical_minimum,
+								field->logical_maximum, 0, 0);
 					return 1;
 			}
 			return 0;
@@ -84,15 +91,17 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_DG_WIDTH:
 				case HID_DG_HEIGHT:
 					return -1;
+
 				case HID_DG_TIPSWITCH:
 					/* touchscreen emulation */
 					debug("%s() - mapping TIPSWITCH to BTN_TOUCH\n", __func__);
 					hid_map_usage(hi, usage, bit, max, EV_KEY, BTN_TOUCH);
-					input_set_capability(input, EV_KEY, BTN_TOUCH);
 					return 1;
+
 				case HID_DG_CONTACTID:
 					debug("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID\n", __func__);
-					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TRACKING_ID);
+					hid_map_usage(hi, usage, bit, max,
+							EV_ABS, ABS_MT_TRACKING_ID);
 					return 1;
 			}
 			return 0;
@@ -112,13 +121,10 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 {
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
-	/* this usage has been mapped just keep processing all as though this cb was not hooked up */
-	/**@todo I dont really know what I am supposed to do here */
-#if 1
 	if (usage->type == EV_KEY || usage->type == EV_ABS)
-		set_bit(usage->type, hi->input->evbit);
-	return -1;
-#endif
+		clear_bit(usage->code, *bit);
+
+	return 0;
 }
 
 /*
@@ -130,7 +136,7 @@ static void report_touch(struct riemann_data *hd, struct input_dev *input)
 {
 	unsigned int k;
 	trace("%s()\n", __func__);
-	
+
 	info("%s() - touch_index=%d, contact_count=%d\n", __func__, hd->touch_index, hd->contact_count);
 	info("%s() - info=%p\n", __func__, input);
 	if (hd->touch_index != 2) {
@@ -182,7 +188,7 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 		                        struct hid_usage *usage, __s32 value)
 {
 	struct riemann_data *hd = hid_get_drvdata(hid);
-	
+
 	/* I dont know why this is happening but it is bad news */
 	if (field->hidinput == NULL)
 	{
@@ -277,26 +283,14 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 		return -ENOMEM;
 	}
 	hd->touch_index = 0;
-
 	hid_set_drvdata(hdev, hd);
 
 	ret = hid_parse(hdev);
-	if (ret) {
-		dev_err(&hdev->dev, "parse failed\n");
-		goto error_free;
-	}
+	if (!ret)
+		ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
+	else
+		kfree(hd);
 
-	/**@todo we must call this, but what is connect_mask about ? */
-	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT & ~HID_CONNECT_FF);
-	if (ret) {
-		dev_err(&hdev->dev, "hw start failed\n");
-		goto error_free;
-	}
-
-	return 0;
-
-error_free:
-	kfree(hd);
 	return ret;
 }
 
@@ -331,11 +325,6 @@ static struct hid_driver riemann_driver = {
 	.input_mapped = riemann_input_mapped,
 	.usage_table = riemann_grabbed_usages,
 	.event = riemann_event,
-};
-
-struct hid_dynid {
-	struct list_head list;
-	struct hid_device_id id;
 };
 
 static int __init riemann_init(void)
