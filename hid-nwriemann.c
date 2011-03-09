@@ -181,9 +181,15 @@ static void report_touch(struct riemann_data *hd, struct input_dev *input)
 static int riemann_event (struct hid_device *hid, struct hid_field *field,
 		                        struct hid_usage *usage, __s32 value)
 {
-	struct input_dev *input = field->hidinput->input;
 	struct riemann_data *hd = hid_get_drvdata(hid);
 	
+	/* I dont know why this is happening but it is bad news */
+	if (field->hidinput == NULL)
+	{
+		info("%s() - oh dear! field->hidinput is NULL\n", __func__);
+		return 0;
+	}
+
 	debug("%s() - usage:0x%.8X\n", __func__, usage->hid);
 	debug("%s() - reportid:%d\n", __func__, field->report->id);
 	debug("%s() - application:0x%.8X\n", __func__, field->application);
@@ -243,7 +249,7 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 				info("%s() - CONTACTCOUNT:0x%.4X\n", __func__, value);
 				hd->contact_count = value;
 				/**@todo process report now we have both touches */
-				//report_touch(hd, input);
+				report_touch(hd, field->hidinput->input);
 				hd->touch_index = 0;
 				break;
 		}
