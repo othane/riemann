@@ -18,6 +18,7 @@
 
 #include <linux/device.h>
 #include <linux/hid.h>
+#include <linux/usb.h>
 #include <linux/module.h>
 #include <linux/slab.h>
 
@@ -270,10 +271,13 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 	return 1;	/* we handled it */
 }
 
+/**@todo make this a kernel param */
+#define FEATURE_MULTITOUCH_ID_HASH 2	/**@todo is this the same as the report id or the order of the reports in the descriptor ?? */
 static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
 	int ret;
 	struct riemann_data *rd;
+	struct hid_report *report;
 
 	trace("%s()\n", __func__); 
 
@@ -291,6 +295,13 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 	else
 		kfree(rd);
 
+	/* send feature report to set us to multitouch mode */
+	report = hdev->report_enum[HID_FEATURE_REPORT].report_id_hash[FEATURE_MULTITOUCH_ID_HASH];
+	if (report) {
+		report->field[0]->value[0] = 2;
+		usbhid_submit_report(hdev, report, USB_DIR_OUT);
+	}
+	
 	return ret;
 }
 
