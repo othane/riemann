@@ -19,10 +19,11 @@
 #include <linux/device.h>
 #include <linux/hid.h>
 #include <linux/usb.h>
+#include "usbhid/usbhid.h"
 #include <linux/module.h>
 #include <linux/slab.h>
 
-//#include "hid-ids.h"	/* our vid is in here but it is hard to link to atm so just hard code for now */
+#include "hid-ids.h"
 
 #define TIPSWITCH_BIT 	(1<<0)
 #define IN_RANGE_BIT	(1<<1)
