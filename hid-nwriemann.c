@@ -21,6 +21,7 @@
 #include <linux/usb.h>
 #include <linux/module.h>
 #include <linux/slab.h>
+#include <linux/version.h>
 
 //#include "hid-ids.h"	/* our vid is in here but it is hard to link to atm so just hard code for now */
 
@@ -32,7 +33,12 @@
 #define debug(...) printk(__VA_ARGS__)
 #define trace(...) printk(__VA_ARGS__)
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,38)
+#define USE_FEATURE_MAPPING
+#endif
+
 struct riemann_data {
+	__u8	inputmode;         /* InputMode HID feature, -1 if non-existent */
 	__u8	touch_index;
 	struct {
 		__u8	status;
@@ -42,6 +48,17 @@ struct riemann_data {
 	} touch[2];
 	__u8	contact_count;
 };
+
+#ifdef USE_FEATURE_MAPPING
+static void riemann_feature_mapping(struct hid_device *hdev, struct hid_input *hi,
+		struct hid_field *field, struct hid_usage *usage)
+{
+	if (usage->hid == HID_DG_INPUTMODE) {
+		struct riemann_data *rd = hid_get_drvdata(hdev);
+		rd->inputmode = field->report->id;
+	}
+}
+#endif
 
 static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
@@ -271,15 +288,36 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 	return 1;	/* we handled it */
 }
 
-/**@todo make this a kernel param */
-#define FEATURE_MULTITOUCH_ID_HASH 2
 /* this is a bit of a hack. we need to extern this here as it is not available in the linux header (only source) */
 extern void usbhid_submit_report(struct hid_device *hid, struct hid_report *report, unsigned char dir);
+
+static void riemann_set_input_mode(struct hid_device *hdev)
+{
+	struct riemann_data *rd = hid_get_drvdata(hdev);
+	struct hid_report *r;
+	struct hid_report_enum *re;
+
+#ifdef USE_FEATURE_MAPPING
+	if (rd->inputmode < 0)
+		return;
+#else
+	rd->inputmode = 2;
+#endif
+
+	/* send feature report to set us to multitouch mode */
+	re = &(hdev->report_enum[HID_FEATURE_REPORT]);
+	r = re->report_id_hash[rd->inputmode];
+	if (r) {
+		r->field[0]->value[0] = 2;
+		usbhid_submit_report(hdev, r, USB_DIR_OUT);
+	}
+	
+}
+
 static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
 	int ret;
 	struct riemann_data *rd;
-	struct hid_report *report;
 
 	trace("%s()\n", __func__); 
 
@@ -289,21 +327,23 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 		return -ENOMEM;
 	}
 	rd->touch_index = 0;
+	rd->inputmode = -1;
 	hid_set_drvdata(hdev, rd);
 
 	ret = hid_parse(hdev);
-	if (!ret)
-		ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
-	else
-		kfree(rd);
+	if (ret)
+		goto fail;
 
-	/* send feature report to set us to multitouch mode */
-	report = hdev->report_enum[HID_FEATURE_REPORT].report_id_hash[FEATURE_MULTITOUCH_ID_HASH];
-	if (report) {
-		report->field[0]->value[0] = 2;
-		usbhid_submit_report(hdev, report, USB_DIR_OUT);
-	}
-	
+	ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
+	if (ret)
+		goto fail;
+
+	riemann_set_input_mode(hdev);
+
+	return 0;
+
+fail:
+	kfree(rd);
 	return ret;
 }
 
@@ -336,6 +376,9 @@ static struct hid_driver riemann_driver = {
 	.remove = riemann_remove,
 	.input_mapping = riemann_input_mapping,
 	.input_mapped = riemann_input_mapped,
+#ifdef USE_FEATURE_MAPPING
+	.feature_mapping = riemann_feature_mapping,
+#endif
 	.usage_table = riemann_grabbed_usages,
 	.event = riemann_event,
 };
