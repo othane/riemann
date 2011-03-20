@@ -273,7 +273,9 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 }
 
 /**@todo make this a kernel param */
-#define FEATURE_MULTITOUCH_ID_HASH 2	/**@todo is this the same as the report id or the order of the reports in the descriptor ?? */
+#define FEATURE_MULTITOUCH_ID_HASH 2
+/* this is a bit of a hack. we need to extern this here as it is not available in the linux header (only source) */
+extern void usbhid_submit_report(struct hid_device *hid, struct hid_report *report, unsigned char dir);
 static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
 	int ret;
