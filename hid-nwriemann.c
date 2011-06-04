@@ -88,9 +88,17 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_DG_CONTACTCOUNT:
 				case HID_DG_CONTACTMAX:
 				case HID_DG_TIPPRESSURE:
-				case HID_DG_WIDTH:
-				case HID_DG_HEIGHT:
 					return -1;
+
+				case HID_DG_WIDTH:
+					debug("%s() - mapping WIDTH to ABS_MT_TOUCH_MAJOR\n", __func__);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TOUCH_MAJOR);
+					return 1;
+
+				case HID_DG_HEIGHT:
+					debug("%s() - mapping HEIGHT to ABS_MT_TOUCH_MINOR\n", __func__);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TOUCH_MINOR);
+					return 1;
 
 				case HID_DG_TIPSWITCH:
 					/* touchscreen emulation */
@@ -153,11 +161,22 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 			return;
 		}
 		/* multitouch */
-		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
+		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
+			__u16	x = rd->touch[k].x; 
+			__u16	y = rd->touch[k].y;
+			__u16	w = rd->touch[k].w;
+			__u16	h = rd->touch[k].h;
+			/* android needs width and needs it to be non zero and some old holly version set w = 0 */
+			if (w == 1) 
+				w = 1;
+			if (h == 1) 
+				h = 1;
 			debug("%s() - sending multitouch event to input\n", __func__);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
-			input_event(input, EV_ABS, ABS_MT_POSITION_X, rd->touch[k].x);
-			input_event(input, EV_ABS, ABS_MT_POSITION_Y, rd->touch[k].y);
+			input_event(input, EV_ABS, ABS_MT_POSITION_X, x);
+			input_event(input, EV_ABS, ABS_MT_POSITION_Y, y);
+			input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, w);
+			input_event(input, EV_ABS, ABS_MT_TOUCH_MINOR, h);
 		}
 		input_mt_sync(input);
 	}
