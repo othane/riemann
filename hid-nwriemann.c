@@ -100,8 +100,7 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 
 				case HID_DG_CONTACTID:
 					debug("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID\n", __func__);
-					hid_map_usage(hi, usage, bit, max,
-							EV_ABS, ABS_MT_TRACKING_ID);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TRACKING_ID);
 					return 1;
 			}
 			return 0;
@@ -153,7 +152,7 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 			return;
 		}
 		/* multitouch */
-		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {	
+		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
 			debug("%s() - sending multitouch event to input\n", __func__);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
 			input_event(input, EV_ABS, ABS_MT_POSITION_X, rd->touch[k].x);
@@ -175,6 +174,8 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 		input_event(input, EV_ABS, ABS_X, rd->touch[0].x);
 		input_event(input, EV_ABS, ABS_Y, rd->touch[0].y);
 	}
+
+	/* sync multi and signle touch data with input */
 	input_sync(input);
 }
 
