@@ -131,6 +131,9 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
  * a touch is ready to be sent to the input sub
  * system
  */
+#ifndef TYPE_B
+#define TYPE_A
+#endif
 static void report_touch(struct riemann_data *rd, struct input_dev *input)
 {
 	unsigned int k;
@@ -152,13 +155,30 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 			return;
 		}
 		/* multitouch */
+		#ifdef TYPE_B
+		input_mt_slot(input, rd->touch[k].contact_id);
+		#endif
 		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
 			debug("%s() - sending multitouch event to input\n", __func__);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
 			input_event(input, EV_ABS, ABS_MT_POSITION_X, rd->touch[k].x);
 			input_event(input, EV_ABS, ABS_MT_POSITION_Y, rd->touch[k].y);
 		}
+		#ifdef TYPE_B
+		else if (!(rd->touch[k].status & TIPSWITCH_BIT) &&
+				 (rd->touch[k].status & (IN_RANGE_BIT | CONFIDENCE_BIT))) {
+			/* touch up, and in range, so remove contact track */
+			debug("%s() - sending multitouch up event to input\n", __func__);
+			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, -1);
+			input_event(input, EV_ABS, ABS_MT_POSITION_X, rd->touch[k].x);
+			input_event(input, EV_ABS, ABS_MT_POSITION_Y, rd->touch[k].y);
+			input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, w);
+			input_event(input, EV_ABS, ABS_MT_TOUCH_MINOR, h);
+		}
+		#endif
+		#ifdef TYPE_A
 		input_mt_sync(input);
+		#endif
 	}
 
 	/* mouse (only for the first touch point) */
