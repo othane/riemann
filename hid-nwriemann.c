@@ -30,8 +30,10 @@
 #define info(...) printk(__VA_ARGS__)
 #define debug(...) printk(__VA_ARGS__)
 #define trace(...) printk(__VA_ARGS__)
+#define error(...) printk(__VA_ARGS__)
 
 struct riemann_data {
+	/* report data */
 	__u8	touch_index;
 	struct {
 		__u8	status;
@@ -40,12 +42,79 @@ struct riemann_data {
 		__u16	w,h;
 	} touch[2];
 	__u8	contact_count;
+
+	/* report limits */
+	int		report_xmin;
+	int		report_ymin;
+	int		report_xmax;
+	int		report_ymax;
+	
+	/* rescale output to within these dimensions */
+	bool scale_set;
+	struct
+	{
+		int xmin; 
+		int ymin;
+		int xmax; 
+		int ymax;
+	} scale;
 };
+
+
+/* sysfs interface */
+
+static ssize_t show_attr_scale(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct hid_device *hdev = container_of(dev, struct hid_device, dev);
+	struct riemann_data *rd = hid_get_drvdata(hdev);
+	
+	trace("%s()\n", __func__); 
+	return sprintf(buf, "%dx%d, %dx%d\n", 
+		rd->scale.xmin, rd->scale.ymin, rd->scale.xmax, rd->scale.ymax);
+}
+
+static ssize_t set_attr_scale(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct hid_device *hdev = container_of(dev, struct hid_device, dev);
+	struct riemann_data *rd = hid_get_drvdata(hdev);
+	int xmin, ymin;
+	int xmax, ymax;
+	
+	trace("%s()\n", __func__); 
+	if (sscanf(buf, "%dx%d, %dx%d", &xmin, &ymin, &xmax, &ymax) == 4) {
+		rd->scale.xmin = xmin;
+		rd->scale.ymin = ymin;
+		rd->scale.xmax = xmax;
+		rd->scale.ymax = ymax;
+		rd->scale_set = true;
+		debug("%s() - scale %d x %d\n", __func__, xmax, ymax);
+	}
+	else {
+		error("%s() invalid scale input!\n", __func__);
+		return -1;
+	}
+	return count;
+}
+
+static DEVICE_ATTR(scale, S_IWUGO | S_IRUGO, show_attr_scale, set_attr_scale);
+
+static struct attribute *dev_attrs[] = {
+	&dev_attr_scale.attr,
+	NULL
+};
+
+static struct attribute_group dev_attr_grp = {
+	.attrs = dev_attrs,
+};
+
+
+/* hid interface */
 
 static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		struct hid_field *field, struct hid_usage *usage,
 		unsigned long **bit, int *max)
 {
+	struct riemann_data *rd = hid_get_drvdata(hdev);
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
 	/* just touchscreen for now */
@@ -65,6 +134,13 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 					input_set_abs_params(hi->input, ABS_X,
 								field->logical_minimum,
 								field->logical_maximum, 0, 0);
+					/* scaling values */
+					rd->report_xmin = field->logical_minimum;
+					rd->report_xmax = field->logical_maximum;
+					if (rd->scale_set == false) {
+						rd->scale.xmin = field->logical_minimum;
+						rd->scale.xmax = field->logical_maximum;
+					}
 					return 1;
 				case HID_GD_Y:
 					debug("%s() - y min:%d; y max:%d\n", __func__,
@@ -75,6 +151,13 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 					input_set_abs_params(hi->input, ABS_Y,
 								field->logical_minimum,
 								field->logical_maximum, 0, 0);
+					/* scaling values */
+					rd->report_ymin = field->logical_minimum;
+					rd->report_ymax = field->logical_maximum;
+					if (rd->scale_set == false) {
+						rd->scale.ymin = field->logical_minimum;
+						rd->scale.ymax = field->logical_maximum;
+					}
 					return 1;
 			}
 			return 0;
@@ -139,11 +222,28 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
  * a touch is ready to be sent to the input sub
  * system
  */
+#define xMOUSE_HACK
+#define xMULTITOUCH_HACK
+#define MIN_WIDTH 1
+#define MIN_HEIGHT 1
 static void report_touch(struct riemann_data *rd, struct input_dev *input)
 {
 	unsigned int k;
+	__u16	x;
+	__u16	y;
+	__u16	w;
+	__u16	h;
+	int	scale_xspan = rd->scale.xmax - rd->scale.xmin;
+	int	scale_yspan = rd->scale.ymax - rd->scale.ymin;
+	int 	report_xspan = rd->report_xmax - rd->report_xmin;
+	int 	report_yspan = rd->report_ymax - rd->report_ymin;
 	trace("%s()\n", __func__);
 
+	/* sanity checks */
+	if (report_xspan == 0)
+	    report_xspan = 1;
+	if (report_yspan == 0)
+	    report_yspan = 1;
 	info("%s() - touch_index=%d, contact_count=%d\n", __func__, rd->touch_index, rd->contact_count);
 	info("%s() - info=%p\n", __func__, input);
 	if (rd->touch_index != 2) {
@@ -153,24 +253,37 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 
 	for (k=0; k < rd->contact_count; k++) {
 		/* filter junk */
-		if ((rd->touch[k].x < 0) || (rd->touch[k].x > 32767) ||
-			(rd->touch[k].y < 0) || (rd->touch[k].y > 32767) ||
+		if ((rd->touch[k].x < 0) || (rd->touch[k].x > rd->report_xmax) ||
+			(rd->touch[k].y < 0) || (rd->touch[k].y > rd->report_ymax) ||
 			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > 1)) {
 			debug("%s() - junk report detected\n", __func__);
 			return;
 		}
 		/* multitouch */
-		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
-			__u16	x = rd->touch[k].x; 
-			__u16	y = rd->touch[k].y;
-			__u16	w = rd->touch[k].w;
-			__u16	h = rd->touch[k].h;
-			/* android needs width and needs it to be non zero and some old holly version set w = 0 */
-			if (w == 1) 
-				w = 1;
-			if (h == 1) 
-				h = 1;
-			debug("%s() - sending multitouch event to input\n", __func__);
+		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {		    	
+			x = (rd->touch[k].x - rd->report_xmin) * scale_xspan/report_xspan + rd->scale.xmin;
+			y = (rd->touch[k].y - rd->report_ymin) * scale_yspan/report_yspan + rd->scale.ymin;
+			/* ideally for width and heigh we would do something like below (I think):
+			 * 		phi = o + pi/2
+			 * 		w+ = w/report_xmax * sqrt((xmax * cos(phi))^2 	+ (ymax * sin(phi))^2)
+			 * 		h+ = w/report_ymax * sqrt((xmax * cos(o))^2 	+ (ymax * sin(o))^2)
+			 * where
+			 * 		o: orientation, 
+			 * 		xmax, ymax: new spacial dimensions to map the touch too
+			 * 		report_xspan, report_yspan: span of the incoming report size ie from 0 to 32767
+			 * 		w+, h+: are the new width and height in the xmax, ymax co-ordinates
+			 * but we do not have o sent from the device so we assume a square touch with w in x, and h in y
+			 */
+			w = rd->touch[k].w * scale_xspan/report_xspan;
+			h = rd->touch[k].h * scale_yspan/report_yspan;
+
+			/**@note android needs width and needs it to be non zero and some old holly version set w = 0 */
+			if (w == 0) 
+				w = MIN_WIDTH;
+			if (h == 0) 
+				h = MIN_HEIGHT;
+
+			debug("%s() - sending multitouch event (x:%d, y:%d) to input\n", __func__, x, y);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
 			input_event(input, EV_ABS, ABS_MT_POSITION_X, x);
 			input_event(input, EV_ABS, ABS_MT_POSITION_Y, y);
@@ -180,18 +293,20 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 		input_mt_sync(input);
 	}
 
+	x = (rd->touch[0].x - rd->report_xmin) * scale_xspan/report_xspan + rd->scale.xmin;
+	y = (rd->touch[0].y - rd->report_ymin) * scale_yspan/report_yspan + rd->scale.ymin;
 	/* mouse (only for the first touch point) */
 	if (rd->touch[0].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
-		debug("%s() - sending mouse event to input\n", __func__);
+		debug("%s() - sending mouse event (x:%d, y:%d) to input\n", __func__, x, y);
 		input_event(input, EV_KEY, BTN_TOUCH, 1);
-		input_event(input, EV_ABS, ABS_X, rd->touch[0].x);
-		input_event(input, EV_ABS, ABS_Y, rd->touch[0].y);
+		input_event(input, EV_ABS, ABS_X, x);
+		input_event(input, EV_ABS, ABS_Y, y);
 	}
 	else {
-		debug("%s() - sending mouse event to input\n", __func__);
+		debug("%s() - sending mouse event (x:%d, y:%d) to input\n", __func__, x, y);
 		input_event(input, EV_KEY, BTN_TOUCH, 0);
-		input_event(input, EV_ABS, ABS_X, rd->touch[0].x);
-		input_event(input, EV_ABS, ABS_Y, rd->touch[0].y);
+		input_event(input, EV_ABS, ABS_X, x);
+		input_event(input, EV_ABS, ABS_Y, y);
 	}
 
 	/* sync multi and signle touch data with input */
@@ -290,6 +405,9 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 	return 1;	/* we handled it */
 }
 
+
+/* general driver stuff */
+
 static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id)
 {
 	int ret;
@@ -297,6 +415,7 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 
 	trace("%s()\n", __func__); 
 
+	/* init riemann data */
 	rd = kzalloc(sizeof(struct riemann_data), GFP_KERNEL);
 	if (!rd) {
 		dev_err(&hdev->dev, "cannot allocate NW riemann data\n");
@@ -304,12 +423,29 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 	}
 	rd->touch_index = 0;
 	hid_set_drvdata(hdev, rd);
+	rd->scale_set = false;
+	rd->scale.xmin = 0;
+	rd->scale.ymin = 0;
+	rd->scale.xmax = 32767;
+	rd->scale.ymax = 32767;
+	rd->report_xmin = 0;
+	rd->report_ymin = 0;
+	rd->report_xmax = 32767;
+	rd->report_ymax = 32767;
 
+	/* hid init */
 	ret = hid_parse(hdev);
 	if (!ret)
 		ret = hid_hw_start(hdev, HID_CONNECT_DEFAULT);
 	else
 		kfree(rd);
+	
+	/* create a sysfs node */
+	ret = sysfs_create_group(&hdev->dev.kobj, &dev_attr_grp);
+	if (ret) {
+		kfree(rd);
+		return ret;
+	}
 
 	return ret;
 }
@@ -317,6 +453,7 @@ static int riemann_probe(struct hid_device *hdev, const struct hid_device_id *id
 static void riemann_remove(struct hid_device *hdev)
 {
 	trace("%s()\n", __func__); 
+	sysfs_remove_group(&hdev->dev.kobj, &dev_attr_grp);
 	hid_hw_stop(hdev);
 	kfree(hid_get_drvdata(hdev));
 	hid_set_drvdata(hdev, NULL);
