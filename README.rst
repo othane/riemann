@@ -7,4 +7,3 @@ To install the driver::
     # insmod hid-nwriemann.ko
     # ./load_riemann.sh
 
-There is a freeze bug somewhere.. still working on it
