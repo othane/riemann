@@ -319,10 +319,10 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
  * decide whether we are in multi or single touch mode
  * and call input_mt_sync after each point if necessary
  */
-static int riemann_event (struct hid_device *hid, struct hid_field *field,
+static int riemann_event (struct hid_device *hdev, struct hid_field *field,
 		                        struct hid_usage *usage, __s32 value)
 {
-	struct riemann_data *rd = hid_get_drvdata(hid);
+	struct riemann_data *rd = hid_get_drvdata(hdev);
 
 	/* I dont know why this is happening but it is bad news */
 	if (field->hidinput == NULL)
@@ -341,7 +341,7 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 		return 0;	/* hid sub system please handle these non finger related stuff */
 
 	/* process the touch report */
-	if (hid->claimed & HID_CLAIMED_INPUT) {
+	if (hdev->claimed & HID_CLAIMED_INPUT) {
 		/* interpret report */
 		/**@todo do I need to endian correct the values or has hid-core already done it for me ? */
 		switch (usage->hid) {
@@ -399,8 +399,8 @@ static int riemann_event (struct hid_device *hid, struct hid_field *field,
 	/**@todo I dont get what below does (I think it passes the report on
 	 * but to who and why I dont get */
 	/* we have handled the hidinput part, now remains hiddev */
-	if ((hid->claimed & HID_CLAIMED_HIDDEV) && hid->hiddev_hid_event)
-		hid->hiddev_hid_event(hid, field, usage, value);
+	if ((hdev->claimed & HID_CLAIMED_HIDDEV) && hdev->hiddev_hid_event)
+		hdev->hiddev_hid_event(hdev, field, usage, value);
 
 	return 1;	/* we handled it */
 }
