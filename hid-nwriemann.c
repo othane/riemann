@@ -27,6 +27,10 @@
 #define IN_RANGE_BIT	(1<<1)
 #define CONFIDENCE_BIT	(1<<2)
 
+#ifndef MAX_TOUCHES
+#define MAX_TOUCHES 5
+#endif
+
 #ifdef DEBUG
 #define info(...) printk(__VA_ARGS__)
 #define debug(...) printk(__VA_ARGS__)
@@ -45,7 +49,7 @@ struct riemann_data {
 		__u8	contact_id;
 		__u16	x,y;
 		__u16	w,h;
-	} touch[2];
+	} touch[MAX_TOUCHES];
 	__u8	contact_count;
 };
 
@@ -145,16 +149,16 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 
 	info("%s() - touch_index=%d, contact_count=%d\n", __func__, rd->touch_index, rd->contact_count);
 	info("%s() - info=%p\n", __func__, input);
-	if (rd->touch_index != 2) {
+	if (rd->touch_index > MAX_TOUCHES) {
 		info("%s() - invalid report\n", __func__);
 		return;
 	}
 
-	for (k=0; k < rd->contact_count; k++) {
+	for (k=0; k < rd->touch_index; k++) {
 		/* filter junk */
 		if ((rd->touch[k].x < 0) || (rd->touch[k].x > 32767) ||
 			(rd->touch[k].y < 0) || (rd->touch[k].y > 32767) ||
-			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > 1)) {
+			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > MAX_TOUCHES - 1)) {
 			debug("%s() - junk report detected\n", __func__);
 			return;
 		}
@@ -257,12 +261,15 @@ static int riemann_event (struct hid_device *hdev, struct hid_field *field,
 				info("%s() - H:%d\n", __func__, value);
 				rd->touch[rd->touch_index].h = value;
 				/* last item in the touch report so move to next touch */
-				rd->touch_index++;
+				if (rd->touch_index < MAX_TOUCHES)
+					rd->touch_index++;
+				else
+					error("%s() too many touches (%d)!\n", __func__, rd->touch_index);
 				break;
 			case HID_DG_CONTACTCOUNT:
 				info("%s() - CONTACTCOUNT:0x%.4X\n", __func__, value);
 				rd->contact_count = value;
-				/**@todo process report now we have both touches */
+				/* process report now we have all the touches */
 				report_touch(rd, field->hidinput->input);
 				rd->touch_index = 0;
 				break;
