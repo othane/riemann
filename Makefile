@@ -1,5 +1,5 @@
 obj-m += hid-nwriemann.o
-KBUILD_CFLAGS += -DDEBUG
+KBUILD_CFLAGS += -DxDEBUG
 KERNEL_SRC ?= /lib/modules/$(shell uname -r)/build
 
 all:

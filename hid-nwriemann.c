@@ -27,9 +27,16 @@
 #define IN_RANGE_BIT	(1<<1)
 #define CONFIDENCE_BIT	(1<<2)
 
+#ifdef DEBUG
 #define info(...) printk(__VA_ARGS__)
 #define debug(...) printk(__VA_ARGS__)
 #define trace(...) printk(__VA_ARGS__)
+#else
+#define info(...)
+#define debug(...)
+#define trace(...)
+#endif
+#define error(...) printk(__VA_ARGS__)
 
 struct riemann_data {
 	__u8	touch_index;
