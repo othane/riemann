@@ -306,6 +306,7 @@ static void riemann_remove(struct hid_device *hdev)
 static const struct hid_device_id riemann_devices[] = {
 	{HID_USB_DEVICE(0x1926, 0x0008)},
 	{HID_USB_DEVICE(0x1926, 0x00FF)},
+	{HID_USB_DEVICE(0x1926, 0x025E)},
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, riemann_devices);
