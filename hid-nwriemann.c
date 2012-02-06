@@ -1,6 +1,9 @@
 /*
  *  Multitouch HID driver for NextWindow Riemann (standalone) Touchscreen
  *
+ *	This code is mostly based on hid-multitouch.c but using older api's to make it more portable:
+ *	Note _only_ use this driver if your version of hid-multitouch does not support your Nextwindow panel
+ *
  *  Copyright (c) 2008-2010 Rafi Rubin
  *  Copyright (c) 2009-2010 Stephane Chatty
  *  Copyright (c) 2010 Canonical, Ltd.
@@ -21,7 +24,9 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
-//#include "hid-ids.h"	/* our vid is in here but it is hard to link to atm so just hard code for now */
+MODULE_AUTHOR("Oliver Thane <othane@gmail.com>");
+MODULE_DESCRIPTION("Nextwindow multitouch panels");
+MODULE_LICENSE("GPL");
 
 #define TIPSWITCH_BIT 	(1<<0)
 #define IN_RANGE_BIT	(1<<1)
@@ -59,7 +64,7 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 {
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
-	/* just touchscreen for now */
+	/* this driver should only operate on touchscreen reports, leave the rest to hid */
 	if (field->application != HID_DG_TOUCHSCREEN)
 		return -1;
 
@@ -68,7 +73,7 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 		case HID_UP_GENDESK:
 			switch (usage->hid) {
 				case HID_GD_X:
-					debug("%s() - x min:%d; x max:%d\n", __func__,
+					info("%s() - x min:%d; x max:%d\n", __func__,
 						field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max,
 							EV_ABS, ABS_MT_POSITION_X);
@@ -78,7 +83,7 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 								field->logical_maximum, 0, 0);
 					return 1;
 				case HID_GD_Y:
-					debug("%s() - y min:%d; y max:%d\n", __func__,
+					info("%s() - y min:%d; y max:%d\n", __func__,
 						field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max,
 							EV_ABS, ABS_MT_POSITION_Y);
@@ -101,16 +106,16 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_DG_TIPPRESSURE:
 				case HID_DG_WIDTH:
 				case HID_DG_HEIGHT:
-					return -1;
+					return 1;
 
 				case HID_DG_TIPSWITCH:
 					/* touchscreen emulation */
-					debug("%s() - mapping TIPSWITCH to BTN_TOUCH\n", __func__);
+					info("%s() - mapping TIPSWITCH to BTN_TOUCH\n", __func__);
 					hid_map_usage(hi, usage, bit, max, EV_KEY, BTN_TOUCH);
 					return 1;
 
 				case HID_DG_CONTACTID:
-					debug("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID\n", __func__);
+					info("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID\n", __func__);
 					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TRACKING_ID);
 					return 1;
 			}
@@ -138,19 +143,16 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 }
 
 /*
- * this function is called by riemann_event when
- * a touch is ready to be sent to the input sub
- * system
+ * this function is called by riemann_event when touches are ready to be sent 
+ * to the input sub-system
  */
 static void report_touch(struct riemann_data *rd, struct input_dev *input)
 {
 	unsigned int k;
 	trace("%s()\n", __func__);
 
-	info("%s() - touch_index=%d, contact_count=%d\n", __func__, rd->touch_index, rd->contact_count);
-	info("%s() - info=%p\n", __func__, input);
 	if (rd->touch_index > MAX_TOUCHES) {
-		info("%s() - invalid report\n", __func__);
+		error("%s() - invalid report\n", __func__);
 		return;
 	}
 
@@ -159,12 +161,11 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 		if ((rd->touch[k].x < 0) || (rd->touch[k].x > 32767) ||
 			(rd->touch[k].y < 0) || (rd->touch[k].y > 32767) ||
 			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > MAX_TOUCHES - 1)) {
-			debug("%s() - junk report detected\n", __func__);
+			error("%s() - junk report detected\n", __func__);
 			return;
 		}
 		/* multitouch */
 		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
-			debug("%s() - sending multitouch event to input\n", __func__);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
 			input_event(input, EV_ABS, ABS_MT_POSITION_X, rd->touch[k].x);
 			input_event(input, EV_ABS, ABS_MT_POSITION_Y, rd->touch[k].y);
@@ -174,13 +175,11 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 
 	/* mouse (only for the first touch point) */
 	if (rd->touch[0].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
-		debug("%s() - sending mouse event to input\n", __func__);
 		input_event(input, EV_KEY, BTN_TOUCH, 1);
 		input_event(input, EV_ABS, ABS_X, rd->touch[0].x);
 		input_event(input, EV_ABS, ABS_Y, rd->touch[0].y);
 	}
 	else {
-		debug("%s() - sending mouse event to input\n", __func__);
 		input_event(input, EV_KEY, BTN_TOUCH, 0);
 		input_event(input, EV_ABS, ABS_X, rd->touch[0].x);
 		input_event(input, EV_ABS, ABS_Y, rd->touch[0].y);
@@ -208,57 +207,43 @@ static int riemann_event (struct hid_device *hdev, struct hid_field *field,
 		return 0;
 	}
 
-	debug("%s() - usage:0x%.8X\n", __func__, usage->hid);
-	debug("%s() - reportid:%d\n", __func__, field->report->id);
-	debug("%s() - application:0x%.8X\n", __func__, field->application);
-	debug("%s() - logical usage: 0x%.8X\n", __func__, field->logical);
-
-	/* ensure this is a touchscreen collection (all are for existing nw devices) */
+	/* this driver should only operate on touchscreen reports, leave the rest to hid */
 	if (field->application != HID_DG_TOUCHSCREEN)
-		return 0;	/* hid sub system please handle these non finger related stuff */
+		return 0;	/* hid can handle these non touch related stuff */
 
 	/* process the touch report */
 	if (hdev->claimed & HID_CLAIMED_INPUT) {
 		/* interpret report */
-		/**@todo do I need to endian correct the values or has hid-core already done it for me ? */
 		switch (usage->hid) {
 			/* multitouch (finger) report */
 			case HID_DG_TIPSWITCH:
-				info("%s() - TIPSWITCH:0x%.4X\n", __func__, value);
 				rd->touch[rd->touch_index].status &= ~TIPSWITCH_BIT;
 				if (value)
 					rd->touch[rd->touch_index].status |= TIPSWITCH_BIT;
 				break;
 			case HID_DG_INRANGE:
-				info("%s() - INRANGE:0x%.4X\n", __func__, value);
 				rd->touch[rd->touch_index].status &= ~IN_RANGE_BIT;
 				if (value)
 					rd->touch[rd->touch_index].status |= IN_RANGE_BIT;
 				break;
 			case HID_DG_CONFIDENCE:
-				info("%s() - CONFIDENCE:0x%.4X\n", __func__, value);
 				rd->touch[rd->touch_index].status &= ~CONFIDENCE_BIT;
 				if (value)
 					rd->touch[rd->touch_index].status |= CONFIDENCE_BIT;
 				break;
 			case HID_DG_CONTACTID:
-				info("%s() - CONTACT ID:%d\n", __func__, value);
 				rd->touch[rd->touch_index].contact_id = value;
 				break;
 			case HID_GD_X:
-				info("%s() - X:%d\n", __func__, value);
 				rd->touch[rd->touch_index].x = value;
 				break;
 			case HID_GD_Y:
-				info("%s() - Y:%d\n", __func__, value);
 				rd->touch[rd->touch_index].y = value;
 				break;
 			case HID_DG_WIDTH:
-				info("%s() - W:%d\n", __func__, value);
 				rd->touch[rd->touch_index].w = value;
 				break;
 			case HID_DG_HEIGHT:
-				info("%s() - H:%d\n", __func__, value);
 				rd->touch[rd->touch_index].h = value;
 				/* last item in the touch report so move to next touch */
 				if (rd->touch_index < MAX_TOUCHES)
@@ -267,17 +252,14 @@ static int riemann_event (struct hid_device *hdev, struct hid_field *field,
 					error("%s() too many touches (%d)!\n", __func__, rd->touch_index);
 				break;
 			case HID_DG_CONTACTCOUNT:
-				info("%s() - CONTACTCOUNT:0x%.4X\n", __func__, value);
 				rd->contact_count = value;
-				/* process report now we have all the touches */
+				/* last item in our touch reports is always the count */
 				report_touch(rd, field->hidinput->input);
 				rd->touch_index = 0;
 				break;
 		}
 	}
 
-	/**@todo I dont get what below does (I think it passes the report on
-	 * but to who and why I dont get */
 	/* we have handled the hidinput part, now remains hiddev */
 	if ((hdev->claimed & HID_CLAIMED_HIDDEV) && hdev->hiddev_hid_event)
 		hdev->hiddev_hid_event(hdev, field, usage, value);
