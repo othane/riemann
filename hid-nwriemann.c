@@ -112,6 +112,7 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 					/* touchscreen emulation */
 					info("%s() - mapping TIPSWITCH to BTN_TOUCH\n", __func__);
 					hid_map_usage(hi, usage, bit, max, EV_KEY, BTN_TOUCH);
+					input_set_capability(hi->input, EV_KEY, BTN_TOUCH);
 					return 1;
 
 				case HID_DG_CONTACTID:
@@ -137,7 +138,7 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 	trace("%s() - usage:0x%.8X\n", __func__, usage->hid);
 
 	if (usage->type == EV_KEY || usage->type == EV_ABS)
-		clear_bit(usage->code, *bit);
+		set_bit(usage->type, hi->input->evbit);
 
 	return 0;
 }
@@ -300,6 +301,7 @@ static void riemann_remove(struct hid_device *hdev)
 }
 
 static const struct hid_device_id riemann_devices[] = {
+	/*{HID_USB_DEVICE(0x1926, HID_ANY_ID)},*/
 	{HID_USB_DEVICE(0x1926, 0x0008)},
 	{HID_USB_DEVICE(0x1926, 0x00FF)},
 	{HID_USB_DEVICE(0x1926, 0x025E)},
