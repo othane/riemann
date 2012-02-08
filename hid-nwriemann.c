@@ -40,7 +40,7 @@ struct riemann_data {
 		__u8	contact_id;
 		__u16	x,y;
 		__u16	w,h;
-	} touch[2];
+	} touch[5];
 	__u8	contact_count;
 
 	/* report limits */
@@ -246,7 +246,7 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 	    report_yspan = 1;
 	info("%s() - touch_index=%d, contact_count=%d\n", __func__, rd->touch_index, rd->contact_count);
 	info("%s() - info=%p\n", __func__, input);
-	if (rd->touch_index != 2) {
+	if (rd->touch_index != 5) {
 		info("%s() - invalid report\n", __func__);
 		return;
 	}
@@ -255,7 +255,7 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 		/* filter junk */
 		if ((rd->touch[k].x < 0) || (rd->touch[k].x > rd->report_xmax) ||
 			(rd->touch[k].y < 0) || (rd->touch[k].y > rd->report_ymax) ||
-			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > 1)) {
+			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > 4)) {
 			debug("%s() - junk report detected\n", __func__);
 			return;
 		}
