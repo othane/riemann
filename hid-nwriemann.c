@@ -37,9 +37,9 @@ MODULE_LICENSE("GPL");
 #endif
 
 #ifdef DEBUG
-#define info(...) printk(__VA_ARGS__)
-#define debug(...) printk(__VA_ARGS__)
-#define trace(...) printk(__VA_ARGS__)
+#define info(...) printk("INFO:"__VA_ARGS__)
+#define debug(...) printk("DBG:"__VA_ARGS__)
+#define trace(...) printk("TRACE:"__VA_ARGS__)
 #else
 #define info(...)
 #define debug(...)
@@ -107,24 +107,23 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 					return 1;
 
 				case HID_DG_WIDTH:
-					debug("%s() - mapping WIDTH to ABS_MT_TOUCH_MAJOR\n", __func__);
+					info("%s() - mapping WIDTH to ABS_MT_TOUCH_MAJOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TOUCH_MAJOR);
 					return 1;
 
 				case HID_DG_HEIGHT:
-					debug("%s() - mapping HEIGHT to ABS_MT_TOUCH_MINOR\n", __func__);
+					info("%s() - mapping HEIGHT to ABS_MT_TOUCH_MINOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TOUCH_MINOR);
 					return 1;
 
 				case HID_DG_TIPSWITCH:
-					/* touchscreen emulation */
-					info("%s() - mapping TIPSWITCH to BTN_TOUCH\n", __func__);
+					info("%s() - mapping TIPSWITCH to BTN_TOUCH %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max, EV_KEY, BTN_TOUCH);
 					input_set_capability(hi->input, EV_KEY, BTN_TOUCH);
 					return 1;
 
 				case HID_DG_CONTACTID:
-					info("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID\n", __func__);
+					info("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TRACKING_ID);
 					return 1;
 			}
@@ -224,7 +223,7 @@ static int riemann_event (struct hid_device *hdev, struct hid_field *field,
 	/* I dont know why this is happening but it is bad news */
 	if (field->hidinput == NULL)
 	{
-		info("%s() - oh dear! field->hidinput is NULL\n", __func__);
+		error("%s() - oh dear! field->hidinput is NULL\n", __func__);
 		return 0;
 	}
 
