@@ -51,9 +51,9 @@ struct riemann_data {
 	__u8	touch_index;
 	struct {
 		__u8	status;
-		__u8	contact_id;
-		__u16	x,y;
-		__u16	w,h;
+		__s32	contact_id;
+		__s32	x,y;
+		__s32	w,h;
 	} touch[MAX_TOUCHES];
 	__u8	contact_count;
 };
@@ -75,20 +75,22 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_GD_X:
 					info("%s() - x min:%d; x max:%d\n", __func__,
 						field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max,
-							EV_ABS, ABS_MT_POSITION_X);
-					/* touchscreen emulation */
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_POSITION_X);
 					input_set_abs_params(hi->input, ABS_X,
+								field->logical_minimum,
+								field->logical_maximum, 0, 0);
+					input_set_abs_params(hi->input, ABS_MT_POSITION_X,
 								field->logical_minimum,
 								field->logical_maximum, 0, 0);
 					return 1;
 				case HID_GD_Y:
 					info("%s() - y min:%d; y max:%d\n", __func__,
 						field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max,
-							EV_ABS, ABS_MT_POSITION_Y);
-					/* touchscreen emulation */
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_POSITION_Y);
 					input_set_abs_params(hi->input, ABS_Y,
+								field->logical_minimum,
+								field->logical_maximum, 0, 0);
+					input_set_abs_params(hi->input, ABS_MT_POSITION_Y,
 								field->logical_minimum,
 								field->logical_maximum, 0, 0);
 					return 1;
@@ -107,17 +109,24 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 					return 1;
 
 				case HID_DG_WIDTH:
-					info("%s() - mapping WIDTH to ABS_MT_TOUCH_MAJOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TOUCH_MAJOR);
+					info("%s() - mapping WIDTH to ABS_MT_WIDTH_MAJOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_WIDTH_MAJOR);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_WIDTH_MAJOR);
+					input_set_abs_params(hi->input, ABS_MT_WIDTH_MAJOR, field->logical_minimum, field->logical_maximum, 0, 0);
 					return 1;
 
 				case HID_DG_HEIGHT:
-					info("%s() - mapping HEIGHT to ABS_MT_TOUCH_MINOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TOUCH_MINOR);
+					info("%s() - mapping HEIGHT to ABS_MT_WIDTH_MINOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_WIDTH_MINOR);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_WIDTH_MINOR);
+					input_set_abs_params(hi->input, ABS_MT_WIDTH_MINOR, field->logical_minimum, field->logical_maximum, 0, 0);
 					return 1;
 
 				case HID_DG_TIPSWITCH:
-					info("%s() - mapping TIPSWITCH to BTN_TOUCH %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					info("%s() - mapping TIPSWITCH to ABS_MT_TOUCH_MAJOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max, EV_KEY, ABS_MT_TOUCH_MAJOR);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_TOUCH_MAJOR);
+					input_set_abs_params(hi->input, ABS_MT_TOUCH_MAJOR, field->logical_minimum, field->logical_maximum, 0, 0);
 					hid_map_usage(hi, usage, bit, max, EV_KEY, BTN_TOUCH);
 					input_set_capability(hi->input, EV_KEY, BTN_TOUCH);
 					return 1;
@@ -125,6 +134,8 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_DG_CONTACTID:
 					info("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TRACKING_ID);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_TRACKING_ID);
+					input_set_abs_params(hi->input, ABS_MT_TRACKING_ID, 0, 255, 0, 0);
 					return 1;
 			}
 			return 0;
@@ -165,30 +176,32 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 	}
 
 	for (k=0; k < rd->touch_index; k++) {
-		/* filter junk */
-		if ((rd->touch[k].x < 0) || (rd->touch[k].x > 32767) ||
-			(rd->touch[k].y < 0) || (rd->touch[k].y > 32767) ||
-			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > MAX_TOUCHES - 1)) {
-			error("%s() - junk report detected\n", __func__);
-			return;
-		}
 		/* multitouch */
-		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
-			__u16	x = rd->touch[k].x; 
-			__u16	y = rd->touch[k].y;
-			__u16	w = rd->touch[k].w;
-			__u16	h = rd->touch[k].h;
-			/* android needs width and needs it to be non zero and some old holly version set w = 0 */
-			if (w == 0) 
-				w = 1;
-			if (h == 0) 
-				h = 1;
-			debug("%s() - sending multitouch event to input\n", __func__);
+		int x = rd->touch[k].x; 
+		int y = rd->touch[k].y;
+		/* fix ups for some older fw that reported w.h as 0 */
+		int w = (rd->touch[k].w == 0)? 1: rd->touch[k].w;
+		int h = (rd->touch[k].h == 0)? 1: rd->touch[k].h;
+		int wide = (w > h);
+		/* divided by two to match visual scale of touch */
+		int	major = max(w, h) >> 1;
+		int minor = min(w, h) >> 1;
+		int status = 1;
+	
+		/* ups and downs */
+		if ((rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) == 0) {
+			major = 0;
+			minor = 0;
+			status = 0;
+		}
+
+		input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, status);
+		if (status) {
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
 			input_event(input, EV_ABS, ABS_MT_POSITION_X, x);
 			input_event(input, EV_ABS, ABS_MT_POSITION_Y, y);
-			input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, w);
-			input_event(input, EV_ABS, ABS_MT_TOUCH_MINOR, h);
+			input_event(input, EV_ABS, ABS_MT_WIDTH_MAJOR, major);
+			input_event(input, EV_ABS, ABS_MT_WIDTH_MINOR, minor);
 		}
 		input_mt_sync(input);
 	}
