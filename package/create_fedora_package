@@ -1,0 +1,88 @@
+#!/bin/bash
+
+VERSION=0.1.0.0
+MACHINE_TYPE=`uname -m`
+RPMSOURCES=~/rpmbuild/SOURCES
+SCRATCH=/tmp/fedora_package_scratch
+KMOD_SRC_DIR=${SCRATCH}/kmod_src
+
+function create_scratch_dir()
+{
+    if [ ! -d "${SCRATCH}" ]; then
+        mkdir ${SCRATCH}
+    fi
+}
+
+function remove_scratch_dir()
+{
+    if [ -d "${SCRATCH}" ]; then
+        rm ${SCRATCH} -rf
+    fi
+}
+
+function exit_with_error()
+{
+    remove_scratch_dir
+    echo "#################################"
+    echo "# ERROR OCCURRED, EXITING EARLY #"
+    echo "#################################"
+    exit 1
+}
+
+function check_error_is()
+{
+if [ $? != $1 ]; then
+    exit_with_error
+fi
+}
+
+function check_error()
+{
+    check_error_is 0
+}
+
+# make temp dir
+create_scratch_dir
+check_error
+
+# move kernel module source into place
+mkdir -p ${KMOD_SRC_DIR}
+check_error
+cp ../Makefile ${KMOD_SRC_DIR}
+check_error
+cp ../hid-nwriemann.c ${KMOD_SRC_DIR}
+check_error
+cp dkms.conf ${KMOD_SRC_DIR}
+check_error
+
+# move package components into place
+cp 40-nwriemann.rules ${SCRATCH}
+check_error
+cp nwriemann_udev ${SCRATCH}
+check_error
+cp ../load_riemann.sh ${KMOD_SRC_DIR}
+check_error
+
+# set version numbers in text files
+sed -i "s/\(Nextwindow Riemann touchscreen driver - Version: \).*/\1${VERSION}/" ${KMOD_SRC_DIR}/hid-nwriemann.c
+check_error
+sed -i "s/\(PACKAGE_VERSION=\).*/\1\"${VERSION}\"/" ${KMOD_SRC_DIR}/dkms.conf
+check_error
+sed -i "s/\(%define version \).*/\1${VERSION}/" nwriemann-dkms.spec
+check_error
+
+# create dkms source tar zip
+tar -C ${KMOD_SRC_DIR} -zcvf hidnwriemann-${VERSION}-src.tar.gz .
+check_error
+mv hidnwriemann-${VERSION}-src.tar.gz ${SCRATCH}
+check_error
+
+# build nwriemann-dkms
+rpmbuild -bb nwriemann-dkms.spec --target i686
+check_error
+rpmbuild -bb nwriemann-dkms.spec --target x86_64
+check_error
+
+# remove temp dir
+remove_scratch_dir
+check_error
