@@ -36,11 +36,11 @@ function check_error()
 }
 
 # export nwriemann-version directory
-svn export nwriemann-version nwriemann-staging
+cp -R nwriemann-version nwriemann-staging
 check_error
 
 # set directory names
-mv nwriemann-staging/usr/src/nwriemann-version nwfermi-staging/usr/src/nwriemann-${VERSION}
+mv nwriemann-staging/usr/src/nwriemann-version nwriemann-staging/usr/src/nwriemann-${VERSION}
 check_error
 mv nwriemann-staging nwriemann-${VERSION}
 check_error
