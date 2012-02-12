@@ -1,0 +1,10 @@
+*.o
+*.ko
+*.o.cmd
+*.ko.cmd
+*.swp
+
+.tmp_versions
+Module.symvers
+hid-nwriemann.mod.c
+modules.order
