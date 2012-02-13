@@ -38,6 +38,10 @@ function check_error()
 # export nwriemann-version directory
 cp -R nwriemann-version nwriemann-staging
 check_error
+rm nwriemann-staging/etc/udev/rules.d/.this_file_intentionally_left_blank
+check_error
+rm nwriemann-staging/usr/src/nwriemann-version/.this_file_intentionally_left_blank
+check_error
 
 # set directory names
 mv nwriemann-staging/usr/src/nwriemann-version nwriemann-staging/usr/src/nwriemann-${VERSION}
