@@ -40,6 +40,8 @@ cp -R nwriemann-version nwriemann-staging
 check_error
 rm nwriemann-staging/etc/udev/rules.d/.this_file_intentionally_left_blank
 check_error
+rm nwriemann-staging/etc/nwriemann/.this_file_intentionally_left_blank
+check_error
 rm nwriemann-staging/usr/src/nwriemann-version/.this_file_intentionally_left_blank
 check_error
 
@@ -55,6 +57,8 @@ check_error
 cp ../hid-nwriemann.c nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
 check_error
 cp dkms.conf nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
+check_error
+cp ../load_riemann.sh nwriemann-${VERSION}/etc/nwriemann
 check_error
 cp 40-nwriemann.rules nwriemann-${VERSION}/etc/udev/rules.d
 check_error
