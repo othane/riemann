@@ -10,8 +10,8 @@ SUBSYSTEM!="usb" GOTO="end"
 # check for hid device
 ATTR{bInterfaceClass}!="03" GOTO="end"
 
-# check for riemann id
-ATTR{idVendor}!="1926" ATTR{idProduct}!="0262" GOTO="end"
+# check for nw vendor id
+ATTR{idVendor}!="1926" GOTO="end"
 
 # run driver load script
 RUN+="/etc/nwriemann/load_riemann.py"
