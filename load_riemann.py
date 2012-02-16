@@ -7,6 +7,9 @@ RIEMANN = '/sys/bus/hid/drivers/riemann'
 
 RIEMANN_PIDS = ('0008', '00FF', '025E', '0262')
 
+# insert hid-nwriemann.ko
+os.system('"modprobe" hid-nwriemann')
+
 # find the holly multitouch interface
 files = os.listdir(GENERIC_USB_HID)
 riemann_multitouch_hids = []
