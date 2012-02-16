@@ -58,7 +58,7 @@ cp ../hid-nwriemann.c nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
 check_error
 cp dkms.conf nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
 check_error
-cp ../load_riemann.sh nwriemann-${VERSION}/etc/nwriemann
+cp ../load_riemann.py nwriemann-${VERSION}/etc/nwriemann
 check_error
 cp 40-nwriemann.rules nwriemann-${VERSION}/etc/udev/rules.d
 check_error

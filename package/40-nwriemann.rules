@@ -14,6 +14,6 @@ ATTR{bInterfaceClass}!="03" GOTO="end"
 ATTR{idVendor}!="1926" ATTR{idProduct}!="0262" GOTO="end"
 
 # run driver load script
-RUN+="/bin/sh /etc/nwriemann/load_riemann.sh"
+RUN+="/etc/nwriemann/load_riemann.py"
 
 LABEL="end"

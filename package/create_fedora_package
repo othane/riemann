@@ -60,7 +60,7 @@ cp 40-nwriemann.rules ${SCRATCH}
 check_error
 cp nwriemann_udev ${SCRATCH}
 check_error
-cp ../load_riemann.sh ${KMOD_SRC_DIR}
+cp ../load_riemann.py ${KMOD_SRC_DIR}
 check_error
 
 # set version numbers in text files
