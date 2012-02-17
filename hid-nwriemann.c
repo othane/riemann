@@ -168,6 +168,7 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 static void report_touch(struct riemann_data *rd, struct input_dev *input)
 {
 	unsigned int k;
+	bool touched = false;
 	trace("%s()\n", __func__);
 
 	if (rd->touch_index > MAX_TOUCHES) {
@@ -182,29 +183,26 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 		/* fix ups for some older fw that reported w.h as 0 */
 		int w = (rd->touch[k].w == 0)? 1: rd->touch[k].w;
 		int h = (rd->touch[k].h == 0)? 1: rd->touch[k].h;
-		int wide = (w > h);
 		/* divided by two to match visual scale of touch */
 		int	major = max(w, h) >> 1;
 		int minor = min(w, h) >> 1;
-		int status = 1;
 	
-		/* ups and downs */
-		if ((rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) == 0) {
-			major = 0;
-			minor = 0;
-			status = 0;
-		}
-
-		input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, status);
-		if (status) {
+		/* send touch info to input */
+		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
+			input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, rd->touch[k].status);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
 			input_event(input, EV_ABS, ABS_MT_POSITION_X, x);
 			input_event(input, EV_ABS, ABS_MT_POSITION_Y, y);
 			input_event(input, EV_ABS, ABS_MT_WIDTH_MAJOR, major);
 			input_event(input, EV_ABS, ABS_MT_WIDTH_MINOR, minor);
+			input_mt_sync(input);
+			touched = true;
 		}
-		input_mt_sync(input);
 	}
+	
+	/* send empty sync report when no touches http://source.android.com/tech/input/touch-devices.html */ 
+	if (!touched)
+		input_mt_sync(input);
 
 	/* mouse (only for the first touch point) */
 	if (rd->touch[0].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
