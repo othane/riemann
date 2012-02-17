@@ -60,7 +60,7 @@ cp 40-nwriemann.rules ${SCRATCH}
 check_error
 cp nwriemann_udev ${SCRATCH}
 check_error
-cp ../load_riemann.py ${KMOD_SRC_DIR}
+cp ../load_riemann.py ${SCRATCH}
 check_error
 
 # set version numbers in text files
@@ -72,9 +72,9 @@ sed -i "s/\(%define version \).*/\1${VERSION}/" nwriemann-dkms.spec
 check_error
 
 # create dkms source tar zip
-tar -C ${KMOD_SRC_DIR} -zcvf hidnwriemann-${VERSION}-src.tar.gz .
+tar -C ${KMOD_SRC_DIR} -zcvf nwriemann-${VERSION}-src.tar.gz .
 check_error
-mv hidnwriemann-${VERSION}-src.tar.gz ${SCRATCH}
+mv nwriemann-${VERSION}-src.tar.gz ${SCRATCH}
 check_error
 
 # build nwriemann-dkms

@@ -43,6 +43,15 @@ fi
 mkdir -p $RPM_BUILD_ROOT/usr/src/%{module}-%{version}/
 cp -rf %{module}-%{version}/* $RPM_BUILD_ROOT/usr/src/%{module}-%{version}
 
+mkdir -p $RPM_BUILD_ROOT/etc/udev/rules.d
+cp %{scratch}/40-nwriemann.rules $RPM_BUILD_ROOT/etc/udev/rules.d
+mkdir -p $RPM_BUILD_ROOT/etc/init.d
+cp %{scratch}/nwriemann_udev $RPM_BUILD_ROOT/etc/init.d
+mkdir -p $RPM_BUILD_ROOT/etc/rc5.d
+ln -sf /etc/init.d/nwriemann_udev $RPM_BUILD_ROOT/etc/rc5.d/S95nwriemann
+mkdir -p $RPM_BUILD_ROOT/etc/nwriemann
+cp %{scratch}/load_riemann.py $RPM_BUILD_ROOT/etc/nwriemann
+
 %clean
 if [ "$RPM_BUILD_ROOT" != "/" ]; then
 	rm -rf $RPM_BUILD_ROOT
@@ -51,6 +60,11 @@ fi
 %files
 %defattr(-,root,root)
 /usr/src/%{module}-%{version}/
+
+/etc/udev/rules.d/40-nwriemann.rules
+/etc/init.d/nwriemann_udev
+/etc/rc5.d/S95nwriemann
+/etc/nwriemann/load_riemann.py
 
 %pre
 
