@@ -37,9 +37,9 @@ MODULE_LICENSE("GPL");
 #endif
 
 #ifdef DEBUG
-#define info(...) printk(__VA_ARGS__)
-#define debug(...) printk(__VA_ARGS__)
-#define trace(...) printk(__VA_ARGS__)
+#define info(...) printk("INFO:"__VA_ARGS__)
+#define debug(...) printk("DBG:"__VA_ARGS__)
+#define trace(...) printk("TRACE:"__VA_ARGS__)
 #else
 #define info(...)
 #define debug(...)
@@ -51,9 +51,9 @@ struct riemann_data {
 	__u8	touch_index;
 	struct {
 		__u8	status;
-		__u8	contact_id;
-		__u16	x,y;
-		__u16	w,h;
+		__s32	contact_id;
+		__s32	x,y;
+		__s32	w,h;
 	} touch[MAX_TOUCHES];
 	__u8	contact_count;
 };
@@ -75,20 +75,22 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_GD_X:
 					info("%s() - x min:%d; x max:%d\n", __func__,
 						field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max,
-							EV_ABS, ABS_MT_POSITION_X);
-					/* touchscreen emulation */
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_POSITION_X);
 					input_set_abs_params(hi->input, ABS_X,
+								field->logical_minimum,
+								field->logical_maximum, 0, 0);
+					input_set_abs_params(hi->input, ABS_MT_POSITION_X,
 								field->logical_minimum,
 								field->logical_maximum, 0, 0);
 					return 1;
 				case HID_GD_Y:
 					info("%s() - y min:%d; y max:%d\n", __func__,
 						field->logical_minimum, field->logical_maximum);
-					hid_map_usage(hi, usage, bit, max,
-							EV_ABS, ABS_MT_POSITION_Y);
-					/* touchscreen emulation */
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_POSITION_Y);
 					input_set_abs_params(hi->input, ABS_Y,
+								field->logical_minimum,
+								field->logical_maximum, 0, 0);
+					input_set_abs_params(hi->input, ABS_MT_POSITION_Y,
 								field->logical_minimum,
 								field->logical_maximum, 0, 0);
 					return 1;
@@ -104,20 +106,36 @@ static int riemann_input_mapping(struct hid_device *hdev, struct hid_input *hi,
 				case HID_DG_CONTACTCOUNT:
 				case HID_DG_CONTACTMAX:
 				case HID_DG_TIPPRESSURE:
+					return 1;
+
 				case HID_DG_WIDTH:
+					info("%s() - mapping WIDTH to ABS_MT_WIDTH_MAJOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_WIDTH_MAJOR);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_WIDTH_MAJOR);
+					input_set_abs_params(hi->input, ABS_MT_WIDTH_MAJOR, field->logical_minimum, field->logical_maximum, 0, 0);
+					return 1;
+
 				case HID_DG_HEIGHT:
+					info("%s() - mapping HEIGHT to ABS_MT_WIDTH_MINOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_WIDTH_MINOR);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_WIDTH_MINOR);
+					input_set_abs_params(hi->input, ABS_MT_WIDTH_MINOR, field->logical_minimum, field->logical_maximum, 0, 0);
 					return 1;
 
 				case HID_DG_TIPSWITCH:
-					/* touchscreen emulation */
-					info("%s() - mapping TIPSWITCH to BTN_TOUCH\n", __func__);
+					info("%s() - mapping TIPSWITCH to ABS_MT_TOUCH_MAJOR %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
+					hid_map_usage(hi, usage, bit, max, EV_KEY, ABS_MT_TOUCH_MAJOR);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_TOUCH_MAJOR);
+					input_set_abs_params(hi->input, ABS_MT_TOUCH_MAJOR, field->logical_minimum, field->logical_maximum, 0, 0);
 					hid_map_usage(hi, usage, bit, max, EV_KEY, BTN_TOUCH);
 					input_set_capability(hi->input, EV_KEY, BTN_TOUCH);
 					return 1;
 
 				case HID_DG_CONTACTID:
-					info("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID\n", __func__);
+					info("%s() - mapping CONTACT_ID to ABS_MT_TRACKING_ID %d, %d\n", __func__, field->logical_minimum, field->logical_maximum);
 					hid_map_usage(hi, usage, bit, max, EV_ABS, ABS_MT_TRACKING_ID);
+					input_set_capability(hi->input, EV_KEY, ABS_MT_TRACKING_ID);
+					input_set_abs_params(hi->input, ABS_MT_TRACKING_ID, 0, 255, 0, 0);
 					return 1;
 			}
 			return 0;
@@ -150,6 +168,7 @@ static int riemann_input_mapped(struct hid_device *hdev, struct hid_input *hi,
 static void report_touch(struct riemann_data *rd, struct input_dev *input)
 {
 	unsigned int k;
+	bool touched = false;
 	trace("%s()\n", __func__);
 
 	if (rd->touch_index > MAX_TOUCHES) {
@@ -158,21 +177,32 @@ static void report_touch(struct riemann_data *rd, struct input_dev *input)
 	}
 
 	for (k=0; k < rd->touch_index; k++) {
-		/* filter junk */
-		if ((rd->touch[k].x < 0) || (rd->touch[k].x > 32767) ||
-			(rd->touch[k].y < 0) || (rd->touch[k].y > 32767) ||
-			(rd->touch[k].contact_id < 0) || (rd->touch[k].contact_id > MAX_TOUCHES - 1)) {
-			error("%s() - junk report detected\n", __func__);
-			return;
-		}
 		/* multitouch */
+		int x = rd->touch[k].x; 
+		int y = rd->touch[k].y;
+		/* fix ups for some older fw that reported w.h as 0 */
+		int w = (rd->touch[k].w == 0)? 1: rd->touch[k].w;
+		int h = (rd->touch[k].h == 0)? 1: rd->touch[k].h;
+		/* divided by two to match visual scale of touch */
+		int	major = max(w, h) >> 1;
+		int minor = min(w, h) >> 1;
+	
+		/* send touch info to input */
 		if (rd->touch[k].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
+			input_event(input, EV_ABS, ABS_MT_TOUCH_MAJOR, rd->touch[k].status);
 			input_event(input, EV_ABS, ABS_MT_TRACKING_ID, rd->touch[k].contact_id);
-			input_event(input, EV_ABS, ABS_MT_POSITION_X, rd->touch[k].x);
-			input_event(input, EV_ABS, ABS_MT_POSITION_Y, rd->touch[k].y);
+			input_event(input, EV_ABS, ABS_MT_POSITION_X, x);
+			input_event(input, EV_ABS, ABS_MT_POSITION_Y, y);
+			input_event(input, EV_ABS, ABS_MT_WIDTH_MAJOR, major);
+			input_event(input, EV_ABS, ABS_MT_WIDTH_MINOR, minor);
+			input_mt_sync(input);
+			touched = true;
 		}
-		input_mt_sync(input);
 	}
+	
+	/* send empty sync report when no touches http://source.android.com/tech/input/touch-devices.html */ 
+	if (!touched)
+		input_mt_sync(input);
 
 	/* mouse (only for the first touch point) */
 	if (rd->touch[0].status & (TIPSWITCH_BIT | IN_RANGE_BIT | CONFIDENCE_BIT)) {
@@ -204,7 +234,7 @@ static int riemann_event (struct hid_device *hdev, struct hid_field *field,
 	/* I dont know why this is happening but it is bad news */
 	if (field->hidinput == NULL)
 	{
-		info("%s() - oh dear! field->hidinput is NULL\n", __func__);
+		error("%s() - oh dear! field->hidinput is NULL\n", __func__);
 		return 0;
 	}
 
@@ -301,11 +331,7 @@ static void riemann_remove(struct hid_device *hdev)
 }
 
 static const struct hid_device_id riemann_devices[] = {
-	/*{HID_USB_DEVICE(0x1926, HID_ANY_ID)},*/
-	{HID_USB_DEVICE(0x1926, 0x0008)},
-	{HID_USB_DEVICE(0x1926, 0x00FF)},
-	{HID_USB_DEVICE(0x1926, 0x025E)},
-	{HID_USB_DEVICE(0x1926, 0x0262)},
+	{HID_USB_DEVICE(0x1926, HID_ANY_ID)},
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, riemann_devices);
