@@ -1,0 +1,19 @@
+# NW Riemann Rules
+#
+
+# check action is "add"
+ACTION!="add" GOTO="end"
+
+# check for usb device
+SUBSYSTEM!="usb" GOTO="end"
+
+# check for hid device
+ATTR{bInterfaceClass}!="03" GOTO="end"
+
+# check for nw vendor id
+ATTR{idVendor}!="1926" GOTO="end"
+
+# run driver load script
+RUN+="/etc/nwriemann/load_riemann.py"
+
+LABEL="end"

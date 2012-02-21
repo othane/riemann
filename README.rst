@@ -5,5 +5,5 @@ To build the driver make sure the kernel headers and gcc are installed then::
 To install the driver::
 
     # insmod hid-nwriemann.ko
-    # ./load_riemann.sh
+    # ./load_riemann.py
 

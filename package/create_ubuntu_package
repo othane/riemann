@@ -1,0 +1,91 @@
+#!/bin/bash
+
+VERSION=0.1.0.0
+MACHINE_TYPE=`uname -m`
+UBUNTU_VER=`cat /etc/issue | sed 's/Ubuntu \([0-9]\+\.[0-9]\+\).*/\1/'`
+
+function remove_staging_dir()
+{
+    if [ -d "nwriemann-staging" ]; then
+        rm nwriemann-staging -rf
+    fi
+    if [ -d "nwriemann-${VERSION}" ]; then
+        rm nwriemann-${VERSION} -rf
+    fi
+}
+
+function exit_with_error()
+{
+    remove_staging_dir
+    echo "#################################"
+    echo "# ERROR OCCURRED, EXITING EARLY #"
+    echo "#################################"
+    exit 1
+}
+
+function check_error_is()
+{
+if [ $? != $1 ]; then
+    exit_with_error
+fi
+}
+
+function check_error()
+{
+    check_error_is 0
+}
+
+# export nwriemann-version directory
+cp -R nwriemann-version nwriemann-staging
+check_error
+rm nwriemann-staging/etc/udev/rules.d/.this_file_intentionally_left_blank
+check_error
+rm nwriemann-staging/etc/nwriemann/.this_file_intentionally_left_blank
+check_error
+rm nwriemann-staging/etc/init/.this_file_intentionally_left_blank
+check_error
+rm nwriemann-staging/usr/src/nwriemann-version/.this_file_intentionally_left_blank
+check_error
+
+# set directory names
+mv nwriemann-staging/usr/src/nwriemann-version nwriemann-staging/usr/src/nwriemann-${VERSION}
+check_error
+mv nwriemann-staging nwriemann-${VERSION}
+check_error
+
+# move package components into place
+cp ../Makefile nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
+check_error
+cp ../hid-nwriemann.c nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
+check_error
+cp dkms.conf nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}
+check_error
+cp ../load_riemann.py nwriemann-${VERSION}/etc/nwriemann
+check_error
+cp 40-nwriemann.rules nwriemann-${VERSION}/etc/udev/rules.d
+check_error
+cp nwriemann.conf nwriemann-${VERSION}/etc/init
+check_error
+
+# set version numbers in text files
+sed -i "s/\(Version: \).*/\1${VERSION}/" nwriemann-${VERSION}/DEBIAN/control
+check_error
+sed -i "s/\(PACKAGE_VERSION=\).*/\1\"${VERSION}\"/" nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}/dkms.conf
+check_error
+sed -i "s/\(Nextwindow Riemann touchscreen driver - Version: \).*/\1${VERSION}/" nwriemann-${VERSION}/usr/src/nwriemann-${VERSION}/hid-nwriemann.c
+check_error
+
+# build package
+sed -i 's/\(Architecture: \).*/\1amd64/' nwriemann-${VERSION}/DEBIAN/control
+check_error
+dpkg -b nwriemann-${VERSION} nwriemann-${VERSION}_amd64.deb
+check_error
+sed -i 's/\(Architecture: \).*/\1i386/' nwriemann-${VERSION}/DEBIAN/control
+check_error
+dpkg -b nwriemann-${VERSION} nwriemann-${VERSION}_i386.deb
+check_error
+
+# remove staging directory
+remove_staging_dir
+check_error
+

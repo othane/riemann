@@ -1,0 +1,20 @@
+#!/bin/sh
+# Copyright (C) 2002-2005 Flavio Stanchina
+# Copyright (C) 2005-2006 Aric Cyr
+# Copyright (C) 2007 Mario Limonciello
+# Copyright (C) 2007 Alberto Milone
+
+
+
+PKGVER=`dpkg-query -W -f='${Version}' nwriemann | awk -F "-" '{print $1}'`
+PKGVER=${PKGVER#*:}
+
+case "$1" in
+    remove|upgrade)
+		echo "Removing all DKMS Modules"
+		dkms remove -m nwriemann -v $PKGVER --all > /dev/null
+		echo "Done."
+        ;;
+esac
+
+
