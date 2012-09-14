@@ -1,0 +1,4 @@
+# NW Multitouch Rules
+#
+KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1926", MODE="0666", SYMLINK+="nw-mt", RUN+="/usr/sbin/load_nw_hid_multitouch.sh"
+LABEL="nw-mt-end"
