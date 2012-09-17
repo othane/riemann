@@ -1,3 +1,0 @@
-[submodule "hid-multitouch"]
-	path = hid-multitouch
-	url = git://git.lii-enac.fr/linux-input/hid-multitouch.git
