@@ -13,7 +13,7 @@ echo -n ${TOUCH_INTERFACE} > ${GENERIC_USB_HID}/unbind
 echo load hid-multitouch
 modprobe hid-multitouch
 PAT='^\([0-9A-Fa-f]\+\):\([0-9A-Fa-f]\+\):\([0-9A-Fa-f]\+\).\([0-9A-Fa-f]\+\).*'
-BUS=`echo ${TOUCH_INTERFACE} | sed "s/${PAT}/\1/"`
+BUS=3
 VID=`echo ${TOUCH_INTERFACE} | sed "s/${PAT}/\2/"` 
 PID=`echo ${TOUCH_INTERFACE} | sed "s/${PAT}/\3/"` 
 MT_CLASS="0"
