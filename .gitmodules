@@ -1,0 +1,3 @@
+[submodule "hid-multitouch"]
+	path = hid-multitouch
+	url = git@github.com:othane/hid-multitouch.git
